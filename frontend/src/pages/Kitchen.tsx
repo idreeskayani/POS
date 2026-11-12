@@ -1,0 +1,85 @@
+import { useEffect, useState } from 'react';
+import { api } from '../api';
+import { useBranch } from '../branchContext';
+import { useBranchSocket } from '../socket';
+import { useAppSelector } from '../store';
+import type { Order, Table } from '../types';
+import { minutesSince } from '../util';
+
+const STATES = ['SENT', 'PREPARING', 'READY'];
+const COLS: [string, string][] = [['SENT', 'New'], ['PREPARING', 'Preparing'], ['READY', 'Ready']];
+
+export default function Kitchen() {
+  const { branch } = useBranch();
+  const role = useAppSelector((s) => s.auth.user!.role);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [error, setError] = useState('');
+  const [, tick] = useState(0);
+
+  useEffect(() => {
+    setError('');
+    Promise.all([
+      api<Order[]>(`/branches/${branch.id}/orders?status=${STATES.join(',')}`),
+      api<Table[]>(`/branches/${branch.id}/tables`),
+    ]).then(([o, t]) => { setOrders(o); setTables(t); }).catch((e) => setError(e.message));
+  }, [branch.id]);
+
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30000); return () => clearInterval(t); }, []);
+
+  const upsert = (o: Order) =>
+    setOrders((prev) => {
+      const rest = prev.filter((x) => x.id !== o.id);
+      return STATES.includes(o.status) ? [...rest, o].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : rest;
+    });
+  useBranchSocket(branch.id, { 'order:new': upsert, 'order:updated': upsert });
+
+  const move = async (o: Order, status: string) => {
+    setError('');
+    try { upsert(await api<Order>(`/branches/${branch.id}/orders/${o.id}/status`, { method: 'PATCH', body: { status } })); }
+    catch (e: any) { setError(e.message); }
+  };
+  const label = (o: Order) => tables.find((t) => t.id === o.tableId)?.label ?? o.type.replace('_', ' ').toLowerCase();
+
+  return (
+    <div className="kitchen">
+      {error && <div className="error">{error}</div>}
+      <div className="cols">
+        {COLS.map(([status, title]) => {
+          const list = orders.filter((o) => o.status === status);
+          return (
+            <section key={status} className="col">
+              <h3>{title} <span className="count">{list.length}</span></h3>
+              {list.length === 0 && <p className="muted">Nothing here.</p>}
+              {list.map((o) => {
+                const mins = minutesSince(o.createdAt);
+                return (
+                  <article key={o.id} className={`ticket ${mins >= 15 && status !== 'READY' ? 'late' : ''}`}>
+                    <header className="row">
+                      <strong>{o.orderNumber}</strong>
+                      <span className="muted">{label(o)}</span>
+                      <div className="spacer" />
+                      <span className="timer">{mins}m</span>
+                    </header>
+                    <ul>
+                      {o.items.map((i) => (
+                        <li key={i.id}>
+                          <b>{i.quantity}×</b> {i.name}
+                          {i.notes && <div className="note">↳ {i.notes}</div>}
+                        </li>
+                      ))}
+                    </ul>
+                    {o.notes && <div className="note">Note: {o.notes}</div>}
+                    {status === 'SENT' && <button className="primary" onClick={() => move(o, 'PREPARING')}>Start preparing</button>}
+                    {status === 'PREPARING' && <button className="primary" onClick={() => move(o, 'READY')}>Mark ready</button>}
+                    {status === 'READY' && role !== 'KITCHEN' && <button onClick={() => move(o, 'SERVED')}>Mark served</button>}
+                  </article>
+                );
+              })}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
