@@ -1,10 +1,8 @@
 export enum Role {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER',
   CASHIER = 'CASHIER',
   WAITER = 'WAITER',
-  KITCHEN = 'KITCHEN',
 }
 export const ORG_WIDE_ROLES: Role[] = [Role.OWNER, Role.ADMIN];
 

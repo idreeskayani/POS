@@ -68,7 +68,7 @@ export class MenuController {
   }
 
   /** Set a branch-specific price and/or availability ("86" an item). */
-  @Put('branches/:branchId/items/:itemId') @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER)
+  @Put('branches/:branchId/items/:itemId') @Roles(Role.OWNER, Role.ADMIN)
   async override(
     @CurrentUser() u: AuthUser,
     @Param('branchId', ParseUUIDPipe) branchId: string,

@@ -11,5 +11,5 @@ export class Payment {
   @Column({ type: 'numeric', precision: 12, scale: 2, transformer: numeric }) amount: number;
   @Column({ type: 'varchar', nullable: true }) reference: string | null;
   @Column({ type: 'uuid' }) receivedById: string;
-  @CreateDateColumn() createdAt: Date;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
 }

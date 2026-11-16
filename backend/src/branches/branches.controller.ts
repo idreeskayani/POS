@@ -46,7 +46,7 @@ export class BranchesController {
     return this.svc.listTables(u, id);
   }
 
-  @Post(':branchId/tables') @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER)
+  @Post(':branchId/tables') @Roles(Role.OWNER, Role.ADMIN)
   addTable(@CurrentUser() u: AuthUser, @Param('branchId', ParseUUIDPipe) id: string, @Body() dto: CreateTableDto) {
     return this.svc.createTable(u, id, dto);
   }

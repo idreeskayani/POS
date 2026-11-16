@@ -7,7 +7,6 @@ import { AuthUser, jwtSecret } from '../common/auth';
 import { ORG_WIDE_ROLES, Role } from '../common/enums';
 import { Branch } from '../entities/branch.entity';
 
-const KITCHEN_ROOM_ROLES: Role[] = [Role.KITCHEN, Role.MANAGER, Role.OWNER, Role.ADMIN];
 
 /**
  * Rooms:  branch:{id}          -> everyone working in that branch (order updates, table changes)
@@ -47,7 +46,7 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   private join(client: Socket, branchId: string, role: Role) {
     client.join(`branch:${branchId}`);
-    if (KITCHEN_ROOM_ROLES.includes(role)) client.join(`branch:${branchId}:kitchen`);
+    client.join(`branch:${branchId}:kitchen`); // any logged-in device can act as the kitchen printer station
   }
 
   toBranch(branchId: string, event: string, data: unknown) {

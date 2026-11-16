@@ -32,7 +32,7 @@ class PayDto {
 export class OrdersController {
   constructor(private svc: OrdersService) {}
 
-  @Post() @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER, Role.CASHIER, Role.WAITER)
+  @Post() @Roles(Role.OWNER, Role.ADMIN, Role.CASHIER, Role.WAITER)
   create(@CurrentUser() u: AuthUser, @Param('branchId', ParseUUIDPipe) branchId: string, @Body() dto: CreateOrderDto) {
     return this.svc.create(u, branchId, dto);
   }
@@ -42,6 +42,11 @@ export class OrdersController {
   list(@CurrentUser() u: AuthUser, @Param('branchId', ParseUUIDPipe) branchId: string, @Query('status') status?: string, @Query('limit') limit?: string) {
     const statuses = status ? (status.split(',').filter((s) => s in OrderStatus) as OrderStatus[]) : undefined;
     return this.svc.list(u, branchId, statuses, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Get(':id/balance')
+  balance(@CurrentUser() u: AuthUser, @Param('branchId', ParseUUIDPipe) branchId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.balance(u, branchId, id);
   }
 
   @Get(':id')
@@ -54,7 +59,7 @@ export class OrdersController {
     return this.svc.setStatus(u, branchId, id, dto.status);
   }
 
-  @Post(':id/pay') @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER, Role.CASHIER)
+  @Post(':id/pay') @Roles(Role.OWNER, Role.ADMIN, Role.CASHIER)
   pay(@CurrentUser() u: AuthUser, @Param('branchId', ParseUUIDPipe) branchId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PayDto) {
     return this.svc.pay(u, branchId, id, dto);
   }

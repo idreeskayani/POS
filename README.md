@@ -38,3 +38,17 @@ npm run dev        # http://localhost:5173  (API expected at http://<same host>:
 Screens: Login/Register, Cashier (menu, cart, tables, kitchen slip on send, pay with cash-received/change, bill slip), Kitchen display (live, order ready), Admin (menu, tables, staff, branches).
 
 Thermal slips use the browser print dialog (80mm or 58mm). For one-click printing without the dialog, start Chrome/Edge with `--kiosk-printing` and set the thermal printer as Windows default.
+
+## Flow and roles
+Customer orders -> **cashier** takes the order and taps *Send to kitchen* (kitchen slip prints) -> kitchen just receives the slip -> cashier taps *Bill & pay*, takes the cash/card, change is shown, bill slip prints.
+
+Roles: **OWNER**, **ADMIN** (all branches, dashboard, admin), **CASHIER** and **WAITER** (one branch). Waiters can take orders but not take payments. There are no kitchen or manager roles.
+
+Kitchen printer: if the printer is on the cashier PC, tick "Print the kitchen slip on this PC" in Print settings. If it is on another PC, log in there with any staff account and leave the **Kitchen printer** page open.
+
+Upgrading an older database: if you created any MANAGER or KITCHEN users, run this once before starting the backend:
+`UPDATE users SET role='CASHIER' WHERE role IN ('MANAGER','KITCHEN');`
+(Also, for the dashboard: `ALTER TABLE orders ALTER COLUMN "createdAt" TYPE timestamptz, ALTER COLUMN "updatedAt" TYPE timestamptz; ALTER TABLE payments ALTER COLUMN "createdAt" TYPE timestamptz;` if not done yet.)
+
+## Dashboard (Owner/Admin)
+KPIs with period-over-period change, sales by day/hour, peak hours, order types, top items, categories, payment methods, staff, branch comparison, live status, searchable order history with CSV export and bill reprint.

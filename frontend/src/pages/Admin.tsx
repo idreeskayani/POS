@@ -147,7 +147,7 @@ function StaffAdmin() {
   const load = () => api<any[]>('/users').then(setUsers);
   useEffect(() => { load().catch(() => {}); api<Branch[]>('/branches').then(setBranches).catch(() => {}); }, []);
   useEffect(() => setF((p) => ({ ...p, branchId: branch.id })), [branch.id]);
-  const roles: Role[] = me.role === 'MANAGER' ? ['CASHIER', 'WAITER', 'KITCHEN'] : me.role === 'ADMIN' ? ['ADMIN', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN'] : ['OWNER', 'ADMIN', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN'];
+  const roles: Role[] = me.role === 'ADMIN' ? ['ADMIN', 'CASHIER', 'WAITER'] : ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'];
   const orgLevel = f.role === 'OWNER' || f.role === 'ADMIN';
   const add = (e: FormEvent) => {
     e.preventDefault();
@@ -166,7 +166,7 @@ function StaffAdmin() {
         <input type="email" placeholder="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required />
         <input type="password" placeholder="Password (min 8)" minLength={8} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} required />
         <select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>{roles.map((r) => <option key={r}>{r}</option>)}</select>
-        {me.role !== 'MANAGER' && !orgLevel && (
+        {!orgLevel && (
           <select value={f.branchId} onChange={(e) => setF({ ...f, branchId: e.target.value })}>
             {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>

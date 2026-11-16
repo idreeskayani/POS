@@ -19,7 +19,7 @@ export class Order {
   @Column({ type: 'numeric', precision: 12, scale: 2, transformer: numeric }) total: number;
   @Column({ type: 'varchar', nullable: true }) notes: string | null;
   @Column({ type: 'uuid' }) createdById: string;
-  @CreateDateColumn() createdAt: Date;
-  @UpdateDateColumn() updatedAt: Date;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;
   @OneToMany(() => OrderItem, (i) => i.order, { cascade: true }) items: Relation<OrderItem[]>;
 }

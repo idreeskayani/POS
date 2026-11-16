@@ -1,4 +1,4 @@
-export type Role = 'OWNER' | 'ADMIN' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN';
+export type Role = 'OWNER' | 'ADMIN' | 'CASHIER' | 'WAITER';
 export interface User { id: string; name: string; email: string; role: Role; branchId: string | null; organizationId: string }
 export interface Branch { id: string; name: string; code: string; address: string | null; taxRate: number; currency: string }
 export interface Table { id: string; label: string; seats: number; status: 'FREE' | 'OCCUPIED' | 'RESERVED' }

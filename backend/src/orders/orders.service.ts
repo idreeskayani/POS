@@ -23,16 +23,17 @@ export interface CreateOrderInput {
   items: { menuItemId: string; quantity: number; notes?: string }[];
 }
 
+// Simple flow: order is SENT to the kitchen, then PAID (via /pay) or CANCELLED.
+// PREPARING / READY / SERVED are legacy values from earlier versions and stay payable/cancellable.
 const TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.OPEN]: [OrderStatus.SENT, OrderStatus.CANCELLED],
-  [OrderStatus.SENT]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
-  [OrderStatus.PREPARING]: [OrderStatus.READY, OrderStatus.CANCELLED],
-  [OrderStatus.READY]: [OrderStatus.SERVED],
-  [OrderStatus.SERVED]: [],
+  [OrderStatus.SENT]: [OrderStatus.CANCELLED],
+  [OrderStatus.PREPARING]: [OrderStatus.CANCELLED],
+  [OrderStatus.READY]: [OrderStatus.CANCELLED],
+  [OrderStatus.SERVED]: [OrderStatus.CANCELLED],
   [OrderStatus.PAID]: [],
   [OrderStatus.CANCELLED]: [],
 };
-const KITCHEN_ALLOWED: OrderStatus[] = [OrderStatus.PREPARING, OrderStatus.READY];
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 @Injectable()
@@ -125,14 +126,19 @@ export class OrdersService {
     return order;
   }
 
+  async balance(user: AuthUser, branchId: string, id: string) {
+    const order = await this.get(user, branchId, id);
+    const paid = round2((await this.payments.find({ where: { orderId: id } })).reduce((s, p) => s + p.amount, 0));
+    return { total: order.total, paid, balance: round2(Math.max(0, order.total - paid)) };
+  }
+
   async setStatus(user: AuthUser, branchId: string, id: string, next: OrderStatus) {
     const order = await this.get(user, branchId, id);
     if (!TRANSITIONS[order.status].includes(next)) {
       throw new BadRequestException(`Cannot move order from ${order.status} to ${next}`);
     }
-    if (user.role === Role.KITCHEN && !KITCHEN_ALLOWED.includes(next)) throw new ForbiddenException('Kitchen can only mark orders preparing or ready');
-    if (next === OrderStatus.CANCELLED && user.role !== Role.MANAGER && user.role !== Role.OWNER && user.role !== Role.ADMIN && order.status !== OrderStatus.SENT) {
-      throw new ForbiddenException('Only a manager can cancel an order already in preparation');
+    if (next === OrderStatus.CANCELLED && order.status !== OrderStatus.SENT && user.role !== Role.OWNER && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only an owner or admin can cancel this order');
     }
     order.status = next;
     await this.orders.save({ id: order.id, status: next });

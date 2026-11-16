@@ -3,7 +3,8 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes } from 'react-router-do
 import { api, saveAuth } from './api';
 import { BranchCtx } from './branchContext';
 import Admin from './pages/Admin';
-import Kitchen from './pages/Kitchen';
+import Dashboard from './pages/Dashboard';
+import PrintStation from './pages/PrintStation';
 import Login from './pages/Login';
 import Pos from './pages/Pos';
 import { setBranch, setUser, useAppDispatch, useAppSelector } from './store';
@@ -41,9 +42,8 @@ function Shell() {
   }, [branches, user.branchId, branchId, dispatch]);
 
   const branch = branches.find((b) => b.id === branchId);
-  const isKitchen = user.role === 'KITCHEN';
-  const canAdmin = ['OWNER', 'ADMIN', 'MANAGER'].includes(user.role);
-  const home = isKitchen ? '/kitchen' : '/pos';
+  const canAdmin = ['OWNER', 'ADMIN'].includes(user.role);
+  const home = '/pos';
 
   const logout = async () => {
     try { await api('/auth/logout', { method: 'POST' }); } catch { /* ignore */ }
@@ -56,8 +56,9 @@ function Shell() {
       <header className="topbar">
         <strong className="brand">POS</strong>
         <nav>
-          {!isKitchen && <NavLink to="/pos">Cashier</NavLink>}
-          <NavLink to="/kitchen">Kitchen</NavLink>
+          {canAdmin && <NavLink to="/dashboard">Dashboard</NavLink>}
+          <NavLink to="/pos">Cashier</NavLink>
+          <NavLink to="/print-station">Kitchen printer</NavLink>
           {canAdmin && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <div className="spacer" />
@@ -78,8 +79,9 @@ function Shell() {
         ) : (
           <BranchCtx.Provider value={{ branch, reload }}>
             <Routes>
-              {!isKitchen && <Route path="/pos" element={<Pos />} />}
-              <Route path="/kitchen" element={<Kitchen />} />
+              <Route path="/pos" element={<Pos />} />
+              <Route path="/print-station" element={<PrintStation />} />
+              {canAdmin && <Route path="/dashboard" element={<Dashboard />} />}
               {canAdmin && <Route path="/admin" element={<Admin />} />}
               <Route path="*" element={<Navigate to={home} replace />} />
             </Routes>

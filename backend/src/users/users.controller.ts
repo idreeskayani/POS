@@ -16,8 +16,6 @@ class CreateUserDto {
   @IsOptional() @IsUUID() branchId?: string;
 }
 
-const MANAGER_CAN_CREATE: Role[] = [Role.CASHIER, Role.WAITER, Role.KITCHEN];
-
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
@@ -26,7 +24,7 @@ export class UsersController {
     @InjectRepository(Branch) private branches: Repository<Branch>,
   ) {}
 
-  @Get() @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER)
+  @Get() @Roles(Role.OWNER, Role.ADMIN)
   list(@CurrentUser() u: AuthUser) {
     return this.users.find({
       where: u.branchId ? { organizationId: u.orgId, branchId: u.branchId } : { organizationId: u.orgId },
@@ -34,13 +32,10 @@ export class UsersController {
     });
   }
 
-  @Post() @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER)
+  @Post() @Roles(Role.OWNER, Role.ADMIN)
   async create(@CurrentUser() u: AuthUser, @Body() dto: CreateUserDto) {
     const orgWide = ORG_WIDE_ROLES.includes(dto.role);
-    if (u.role === Role.MANAGER) {
-      if (!MANAGER_CAN_CREATE.includes(dto.role)) throw new ForbiddenException('Managers can only create cashier, waiter or kitchen users');
-      dto.branchId = u.branchId; // managers can only add staff to their own branch
-    } else if (u.role === Role.ADMIN && dto.role === Role.OWNER) {
+    if (u.role === Role.ADMIN && dto.role === Role.OWNER) {
       throw new ForbiddenException('Only an owner can create another owner');
     }
     if (!orgWide && !dto.branchId) throw new BadRequestException('branchId is required for branch-level roles');
