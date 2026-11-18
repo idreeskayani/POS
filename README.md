@@ -51,4 +51,5 @@ Upgrading an older database: if you created any MANAGER or KITCHEN users, run th
 (Also, for the dashboard: `ALTER TABLE orders ALTER COLUMN "createdAt" TYPE timestamptz, ALTER COLUMN "updatedAt" TYPE timestamptz; ALTER TABLE payments ALTER COLUMN "createdAt" TYPE timestamptz;` if not done yet.)
 
 ## Dashboard (Owner/Admin)
+Everything is clickable: KPI cards, chart bars, donut slices, ranked items, table rows and live statuses open a side panel with the orders behind that number (click an order for its full detail and bill reprint).
 KPIs with period-over-period change, sales by day/hour, peak hours, order types, top items, categories, payment methods, staff, branch comparison, live status, searchable order history with CSV export and bill reprint.

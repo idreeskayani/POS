@@ -80,14 +80,14 @@ export class ReportsService {
                 COALESCE(SUM(o.total), 0)::float AS sales, COUNT(*)::int AS orders
          ${from} WHERE ${withTz.sql} ${paid} GROUP BY 1 ORDER BY 1`, withTz.params),
       this.ds.query(
-        `SELECT oi.name, SUM(oi.quantity)::int AS qty, COALESCE(SUM(oi."lineTotal"), 0)::float AS revenue
+        `SELECT oi."menuItemId" AS "menuItemId", oi.name, SUM(oi.quantity)::int AS qty, COALESCE(SUM(oi."lineTotal"), 0)::float AS revenue
          FROM order_items oi JOIN orders o ON o.id = oi."orderId" JOIN branches b ON b.id = o."branchId"
          WHERE ${s.sql} ${paid} GROUP BY oi."menuItemId", oi.name ORDER BY revenue DESC LIMIT 10`, s.params),
       this.ds.query(
-        `SELECT COALESCE(c.name, 'Uncategorized') AS name, COALESCE(SUM(oi."lineTotal"), 0)::float AS revenue, SUM(oi.quantity)::int AS qty
+        `SELECT c.id AS "categoryId", COALESCE(c.name, 'Uncategorized') AS name, COALESCE(SUM(oi."lineTotal"), 0)::float AS revenue, SUM(oi.quantity)::int AS qty
          FROM order_items oi JOIN orders o ON o.id = oi."orderId" JOIN branches b ON b.id = o."branchId"
          LEFT JOIN menu_items mi ON mi.id = oi."menuItemId" LEFT JOIN categories c ON c.id = mi."categoryId"
-         WHERE ${s.sql} ${paid} GROUP BY 1 ORDER BY revenue DESC`, s.params),
+         WHERE ${s.sql} ${paid} GROUP BY c.id, c.name ORDER BY revenue DESC`, s.params),
       this.ds.query(
         `SELECT o.type, COUNT(*)::int AS orders, COALESCE(SUM(o.total), 0)::float AS sales
          ${from} WHERE ${s.sql} ${paid} GROUP BY o.type ORDER BY sales DESC`, s.params),
@@ -119,26 +119,64 @@ export class ReportsService {
     };
   }
 
+  /** Every item sold (paid orders) in the range, for the "Items sold" drill-down. */
+  async items(user: AuthUser, r: Range) {
+    const s = this.scope(user, r);
+    return this.ds.query(
+      `SELECT oi."menuItemId" AS "menuItemId", oi.name, COALESCE(c.name, 'Uncategorized') AS category,
+              SUM(oi.quantity)::int AS qty, COALESCE(SUM(oi."lineTotal"), 0)::float AS revenue, COUNT(DISTINCT o.id)::int AS orders
+       FROM order_items oi JOIN orders o ON o.id = oi."orderId" JOIN branches b ON b.id = o."branchId"
+       LEFT JOIN menu_items mi ON mi.id = oi."menuItemId" LEFT JOIN categories c ON c.id = mi."categoryId"
+       WHERE ${s.sql} AND o.status = 'PAID'
+       GROUP BY oi."menuItemId", oi.name, c.name ORDER BY qty DESC, revenue DESC LIMIT 300`,
+      s.params,
+    );
+  }
+
+  /** Orders list used by order history and every dashboard drill-down. */
   async orderHistory(
     user: AuthUser,
-    q: { from: Date; to: Date; branchId?: string; status?: string; search?: string; limit: number; offset: number },
+    q: {
+      from?: Date; to?: Date; live?: boolean; branchId?: string; status?: string[]; type?: string; staffId?: string;
+      hasDiscount?: boolean; hasTax?: boolean; menuItemId?: string; categoryId?: string; paymentMethod?: string;
+      hour?: number; tz: string; search?: string; limit: number; offset: number;
+    },
   ) {
-    const s = this.scope(user, q);
-    const params = [...s.params];
-    let extra = '';
-    if (q.status) { params.push(q.status); extra += ` AND o.status = $${params.length}`; }
-    if (q.search) { params.push(`%${q.search}%`); extra += ` AND o."orderNumber" ILIKE $${params.length}`; }
+    const params: any[] = [user.orgId];
+    const p = (v: unknown) => { params.push(v); return `$${params.length}`; };
+    let where = `b."organizationId" = $1`;
+    if (q.live) where += ` AND o.status::text = ANY(${p(['OPEN', 'SENT', 'PREPARING', 'READY', 'SERVED'])}::text[])`;
+    else where += ` AND o."createdAt" >= ${p(q.from)} AND o."createdAt" < ${p(q.to)}`;
+    const branchId = user.branchId ?? q.branchId;
+    if (branchId) where += ` AND o."branchId" = ${p(branchId)}::uuid`;
+    if (q.status?.length) where += ` AND o.status::text = ANY(${p(q.status)}::text[])`;
+    if (q.type) where += ` AND o.type::text = ${p(q.type)}`;
+    if (q.staffId) where += ` AND o."createdById" = ${p(q.staffId)}::uuid`;
+    if (q.hasDiscount) where += ` AND o.discount > 0`;
+    if (q.hasTax) where += ` AND o.tax > 0`;
+    if (q.menuItemId) where += ` AND EXISTS (SELECT 1 FROM order_items x WHERE x."orderId" = o.id AND x."menuItemId" = ${p(q.menuItemId)}::uuid)`;
+    if (q.categoryId) where += ` AND EXISTS (SELECT 1 FROM order_items x JOIN menu_items mi ON mi.id = x."menuItemId" WHERE x."orderId" = o.id AND mi."categoryId" = ${p(q.categoryId)}::uuid)`;
+    if (q.paymentMethod) where += ` AND EXISTS (SELECT 1 FROM payments pm WHERE pm."orderId" = o.id AND pm.method::text = ${p(q.paymentMethod)})`;
+    if (q.hour !== undefined) where += ` AND EXTRACT(HOUR FROM o."createdAt" AT TIME ZONE ${p(q.tz)}::text) = ${p(q.hour)}::int`;
+    if (q.search) where += ` AND o."orderNumber" ILIKE ${p(`%${q.search}%`)}`;
+
     const base = `FROM orders o JOIN branches b ON b.id = o."branchId"
                   LEFT JOIN users u ON u.id = o."createdById" LEFT JOIN dining_tables t ON t.id = o."tableId"
-                  WHERE ${s.sql}${extra}`;
-    const [{ count }] = await this.ds.query(`SELECT COUNT(*)::int AS count ${base}`, params);
+                  WHERE ${where}`;
+    const [agg] = await this.ds.query(
+      `SELECT COUNT(*)::int AS count, COALESCE(SUM(o.total), 0)::float AS sum,
+              COALESCE(SUM(o.tax), 0)::float AS "sumTax", COALESCE(SUM(o.discount), 0)::float AS "sumDiscount" ${base}`,
+      params,
+    );
     const rows = await this.ds.query(
       `SELECT o.id, o."orderNumber", o.status, o.type, o.subtotal::float, o.tax::float, o.discount::float, o.total::float,
-              o."createdAt", o."branchId", b.name AS branch, u.name AS staff, t.label AS "tableLabel"
+              o."createdAt", o."branchId", b.name AS branch, u.name AS staff, t.label AS "tableLabel",
+              (SELECT string_agg(x.quantity::text || ' x ' || x.name, ', ' ORDER BY x.name) FROM order_items x WHERE x."orderId" = o.id) AS items,
+              (SELECT string_agg(DISTINCT pm.method::text, ', ') FROM payments pm WHERE pm."orderId" = o.id) AS methods
        ${base} ORDER BY o."createdAt" DESC LIMIT ${q.limit} OFFSET ${q.offset}`,
       params,
     );
-    return { total: count, rows };
+    return { total: agg.count, sum: agg.sum, sumTax: agg.sumTax, sumDiscount: agg.sumDiscount, rows };
   }
 
   async orderDetail(user: AuthUser, id: string) {

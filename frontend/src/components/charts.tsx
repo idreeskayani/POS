@@ -18,7 +18,7 @@ function niceMax(v: number) {
 
 export interface Bar { label: string; value: number; tip?: string; hl?: boolean }
 
-export function BarChart({ data, format, height = 230, color = '#e8590c' }: { data: Bar[]; format: (n: number) => string; height?: number; color?: string }) {
+export function BarChart({ data, format, height = 230, color = '#e8590c', onBarClick }: { data: Bar[]; format: (n: number) => string; height?: number; color?: string; onBarClick?: (i: number) => void }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 720, H = height, padL = 46, padR = 8, padT = 12, padB = 28;
   const innerW = W - padL - padR, innerH = H - padT - padB;
@@ -43,7 +43,7 @@ export function BarChart({ data, format, height = 230, color = '#e8590c' }: { da
           const h = max ? (d.value / max) * innerH : 0;
           const x = padL + i * step + (step - bw) / 2;
           return (
-            <g key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+            <g key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onBarClick?.(i)} style={onBarClick ? { cursor: 'pointer' } : undefined}>
               <rect x={padL + i * step} y={padT} width={step} height={innerH} fill="transparent" />
               <rect x={x} y={padT + innerH - h} width={bw} height={Math.max(h, d.value > 0 ? 1 : 0)} rx={2}
                 fill={d.hl ? '#c92a2a' : color} opacity={hover === null || hover === i ? 1 : 0.55} />
@@ -53,13 +53,13 @@ export function BarChart({ data, format, height = 230, color = '#e8590c' }: { da
         })}
       </svg>
       <div className="chart-tip">
-        {hover !== null ? <><strong>{data[hover].label}</strong>: {format(data[hover].value)}{data[hover].tip ? ` · ${data[hover].tip}` : ''}</> : <span className="muted">Hover a bar for details</span>}
+        {hover !== null ? <><strong>{data[hover].label}</strong>: {format(data[hover].value)}{data[hover].tip ? ` · ${data[hover].tip}` : ''}</> : <span className="muted">{onBarClick ? 'Click a bar to see its orders' : 'Hover a bar for details'}</span>}
       </div>
     </div>
   );
 }
 
-export function Donut({ slices, format, centerLabel }: { slices: { label: string; value: number }[]; format: (n: number) => string; centerLabel?: string }) {
+export function Donut({ slices, format, centerLabel, onSliceClick }: { slices: { label: string; value: number }[]; format: (n: number) => string; centerLabel?: string; onSliceClick?: (i: number) => void }) {
   const total = slices.reduce((s, x) => s + x.value, 0);
   const R = 42, C = 2 * Math.PI * R;
   let acc = 0;
@@ -71,7 +71,8 @@ export function Donut({ slices, format, centerLabel }: { slices: { label: string
           const frac = s.value / total;
           const el = (
             <circle key={s.label} cx="60" cy="60" r={R} fill="none" stroke={PALETTE[i % PALETTE.length]} strokeWidth="16"
-              strokeDasharray={`${frac * C} ${C - frac * C}`} strokeDashoffset={-acc * C} transform="rotate(-90 60 60)" />
+              strokeDasharray={`${frac * C} ${C - frac * C}`} strokeDashoffset={-acc * C} transform="rotate(-90 60 60)"
+              onClick={() => onSliceClick?.(i)} style={onSliceClick ? { cursor: 'pointer' } : undefined}><title>{s.label}</title></circle>
           );
           acc += frac;
           return el;
@@ -82,7 +83,7 @@ export function Donut({ slices, format, centerLabel }: { slices: { label: string
       <ul className="legend">
         {slices.length === 0 && <li className="muted">No data</li>}
         {slices.map((s, i) => (
-          <li key={s.label}>
+          <li key={s.label} className={onSliceClick ? 'clickable' : ''} onClick={() => onSliceClick?.(i)}>
             <i style={{ background: PALETTE[i % PALETTE.length] }} />
             <span className="grow">{s.label}</span>
             <strong>{format(s.value)}</strong>
@@ -94,13 +95,13 @@ export function Donut({ slices, format, centerLabel }: { slices: { label: string
   );
 }
 
-export function RankList({ rows, format }: { rows: { label: string; value: number; sub?: string }[]; format: (n: number) => string }) {
+export function RankList({ rows, format, onRowClick }: { rows: { label: string; value: number; sub?: string }[]; format: (n: number) => string; onRowClick?: (i: number) => void }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (rows.length === 0) return <p className="muted">No data for this period.</p>;
   return (
     <div className="rank">
       {rows.map((r, i) => (
-        <div key={r.label + i} className="rank-row">
+        <div key={r.label + i} className={onRowClick ? 'rank-row clickable' : 'rank-row'} onClick={() => onRowClick?.(i)}>
           <div className="rank-head">
             <span><span className="rank-n">{i + 1}</span>{r.label}</span>
             <span><strong>{format(r.value)}</strong>{r.sub && <span className="muted small"> · {r.sub}</span>}</span>
